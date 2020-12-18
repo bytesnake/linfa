@@ -31,14 +31,14 @@ pub trait Fit<'a, R: Records, T: Targets> {
 /// An incremental algorithm takes a former model and dataset and returns a new model with updated
 /// parameters. If the former model is `None`, then the function acts like `Fit::fit` and
 /// initializes the model first.
-pub trait IncrementalFit<'a, R: Records, T: Targets, E: std::error::Error> {
+pub trait IncrementalFit<'a, R: Records, T: Targets, I: Into<Option<Self::Object>>> {
     type Object: 'a;
 
     fn fit_with(
         &self,
-        model: Option<Self::Object>,
+        model: I,
         dataset: &'a Dataset<R, T>,
-    ) -> Result<Option<Self::Object>, E>;
+    ) -> Self::Object;
 }
 
 /// Predict with model

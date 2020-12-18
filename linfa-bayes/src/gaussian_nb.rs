@@ -8,7 +8,7 @@ use ndarray::{s, Array1, Array2, ArrayView1, ArrayView2, Axis};
 use ndarray_stats::QuantileExt;
 use std::collections::HashMap;
 
-use crate::error::{BayesError, Result};
+use crate::error::Result;
 use linfa::dataset::{Dataset, Labels};
 use linfa::traits::{Fit, IncrementalFit, Predict};
 use linfa::Float;
@@ -83,21 +83,18 @@ where
         let mut unique_classes = dataset.targets.labels();
         unique_classes.sort_unstable();
 
-        let mut model: Option<GaussianNb<_>> = None;
-
         // We train the model
-        model = self.fit_with(model, dataset)?;
-
-        Ok(model.unwrap())
+        self.fit_with(None, dataset)
     }
 }
 
-impl<A, L> IncrementalFit<'_, ArrayView2<'_, A>, L, BayesError> for GaussianNbParams
+impl<A, L, I> IncrementalFit<'_, ArrayView2<'_, A>, L, I> for GaussianNbParams
 where
     A: Float,
     L: Labels<Elem = usize>,
+    I: Into<Option<Result<GaussianNb<A>>>>,
 {
-    type Object = GaussianNb<A>;
+    type Object = Result<GaussianNb<A>>;
 
     /// Incrementally fit on a batch of samples
     ///
@@ -121,14 +118,12 @@ where
     /// let y = array![1, 1, 1, 2, 2, 2];
     ///
     /// let mut clf = GaussianNbParams::params();
-    /// let mut model = None;
     ///
-    /// for (x, y) in x
-    ///     .axis_chunks_iter(Axis(0), 2)
-    ///     .zip(y.axis_chunks_iter(Axis(0), 2))
-    /// {
-    ///     model = clf.fit_with(model, &Dataset::new(x, y))?;
-    /// }
+    /// let model = x.axis_chunks_iter(Axis(0), 2)
+    ///    .zip(y.axis_chunks_iter(Axis(0), 2))
+    ///    .map(|(a, b)| Dataset::new(a, b))
+    ///    .fold(None, |current, d| Some(clf.fit_with(current, &d)))
+    ///    .unwrap();
     ///
     /// let pred = model.as_ref().unwrap().predict(x.view());
     ///
@@ -136,13 +131,16 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    fn fit_with(
-        &self,
-        model_in: Option<Self::Object>,
-        dataset: &Dataset<ArrayView2<A>, L>,
-    ) -> std::result::Result<Option<Self::Object>, BayesError> {
+    fn fit_with(&self, model_in: I, dataset: &Dataset<ArrayView2<A>, L>) -> Self::Object {
         let x = dataset.records();
         let y = dataset.targets();
+
+        //propagate errors
+        let model_in = match model_in.into() {
+            Some(Err(err)) => return Err(err),
+            Some(Ok(x)) => Some(x),
+            None => None,
+        };
 
         // If the ratio of the variance between dimensions is too small, it will cause
         // numerical errors. We address this by artificially boosting the variance
@@ -205,7 +203,7 @@ where
             info.prior = A::from(info.class_count).unwrap() / A::from(class_count_sum).unwrap();
         }
 
-        Ok(Some(model))
+        Ok(model)
     }
 }
 
@@ -421,14 +419,12 @@ mod tests {
 
         let clf = GaussianNbParams::params();
 
-        let mut model = None;
-
-        for (x, y) in x
+        let model = x
             .axis_chunks_iter(Axis(0), 2)
             .zip(y.axis_chunks_iter(Axis(0), 2))
-        {
-            model = clf.fit_with(model, &Dataset::new(x, y)).unwrap();
-        }
+            .map(|(a, b)| Dataset::new(a, b))
+            .fold(None, |current, d| Some(clf.fit_with(current, &d)))
+            .unwrap();
 
         let pred = model.as_ref().unwrap().predict(x.view());
 
