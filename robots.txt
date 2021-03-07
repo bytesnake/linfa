@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bytesnake.github.io/linfa/sitemap.xml
