@@ -1,8 +1,12 @@
 use crate::errors::{PlsError, Result};
-use crate::{utils, Float};
+use crate::utils;
 
 use linfa::{
-    dataset::Records, traits::Fit, traits::PredictRef, traits::Transformer, Dataset, DatasetBase,
+    dataset::{Records, WithLapack, WithoutLapack},
+    traits::Fit,
+    traits::PredictRef,
+    traits::Transformer,
+    Dataset, DatasetBase, Float,
 };
 use ndarray::{Array1, Array2, ArrayBase, Data, Ix2};
 use ndarray_linalg::svd::*;
@@ -321,8 +325,8 @@ impl<F: Float, D: Data<Elem = F>> Fit<ArrayBase<D, Ix2>, ArrayBase<D, Ix2>, PlsE
         // Similiarly, Y was approximated as Omega . Delta.T + Y_(R+1)
 
         // Compute transformation matrices (rotations_). See User Guide.
-        let x_rotations = x_weights.dot(&utils::pinv2(&x_loadings.t().dot(&x_weights), None));
-        let y_rotations = y_weights.dot(&utils::pinv2(&y_loadings.t().dot(&y_weights), None));
+        let x_rotations = x_weights.dot(&utils::pinv2(x_loadings.t().dot(&x_weights).view(), None));
+        let y_rotations = y_weights.dot(&utils::pinv2(y_loadings.t().dot(&y_weights).view(), None));
 
         let mut coefficients = x_rotations.dot(&y_loadings.t());
         coefficients *= &y_std;
@@ -368,8 +372,8 @@ impl<F: Float> PlsParams<F> {
         let mut x_pinv = None;
         let mut y_pinv = None;
         if self.mode == Mode::B {
-            x_pinv = Some(utils::pinv2(&x, Some(F::cast(10.) * eps)));
-            y_pinv = Some(utils::pinv2(&y, Some(F::cast(10.) * eps)));
+            x_pinv = Some(utils::pinv2(x.view(), Some(F::cast(10.) * eps)));
+            y_pinv = Some(utils::pinv2(y.view(), Some(F::cast(10.) * eps)));
         }
 
         // init to big value for first convergence check
@@ -425,10 +429,13 @@ impl<F: Float> PlsParams<F> {
         y: &ArrayBase<impl Data<Elem = F>, Ix2>,
     ) -> Result<(Array1<F>, Array1<F>)> {
         let c = x.t().dot(y);
+
+        let c = c.with_lapack();
         let (u, _, vt) = c.svd(true, true)?;
         // safe unwrap because both parameters are set to true in above call
-        let u = u.unwrap().column(0).to_owned();
-        let vt = vt.unwrap().row(0).to_owned();
+        let u = u.unwrap().column(0).to_owned().without_lapack();
+        let vt = vt.unwrap().row(0).to_owned().without_lapack();
+
         Ok((u, vt))
     }
 }

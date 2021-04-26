@@ -1,5 +1,9 @@
-use linfa::{DatasetBase, Float};
-use ndarray::{s, Array1, Array2, ArrayBase, Axis, Data, DataMut, Ix1, Ix2, Zip};
+use linfa::{
+    dataset::{WithLapack, WithoutLapack},
+    DatasetBase, Float,
+};
+use ndarray::{s, Array1, Array2, ArrayBase, ArrayView2, Axis, Data, DataMut, Ix1, Ix2, Zip};
+use ndarray_linalg::Scalar;
 use ndarray_linalg::svd::*;
 use ndarray_stats::QuantileExt;
 
@@ -15,10 +19,8 @@ pub fn outer<F: Float>(
 }
 
 /// Calculates the pseudo inverse of a matrix
-pub fn pinv2<F: crate::Float, D: Data<Elem = F>>(
-    x: &ArrayBase<D, Ix2>,
-    cond: Option<F>,
-) -> Array2<F> {
+pub fn pinv2<F: Float>(x: ArrayView2<F>, cond: Option<F>) -> Array2<F> {
+    let x = x.with_lapack();
     let (opt_u, s, opt_vh) = x.svd(true, true).unwrap();
     let u = opt_u.unwrap();
     let vh = opt_vh.unwrap();
@@ -34,11 +36,12 @@ pub fn pinv2<F: crate::Float, D: Data<Elem = F>>(
     });
 
     let mut ucut = u.slice(s![.., ..rank]).to_owned();
-    ucut /= &s.slice(s![..rank]).mapv(|v| F::cast(v));
+    ucut /= &s.slice(s![..rank]).mapv(|v| F::Lapack::cast(v));
     ucut.dot(&vh.slice(s![..rank, ..]))
         .mapv(|v| v.conj())
         .t()
         .to_owned()
+        .without_lapack()
 }
 
 #[allow(clippy::type_complexity)]

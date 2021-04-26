@@ -202,7 +202,10 @@ where
         }
 
         let records: Array2<F> = concatenate(Axis(0), &records_arr).unwrap();
+
+        dbg!(&targets_arr.iter().map(|x| x.shape()).collect::<Vec<_>>());
         let targets = concatenate(Axis(0), &targets_arr).unwrap();
+        dbg!(&targets.shape());
 
         let targets = CountedTargets {
             targets,

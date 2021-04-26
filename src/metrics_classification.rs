@@ -592,16 +592,20 @@ mod tests {
         );
     }
 
-    /*#[test]
+    #[test]
     fn test_modification() {
-        let predicted = array![0, 3, 2, 0, 1, 1, 1, 3, 2, 3];
+        let predicted = array![3, 0, 2, 0, 1, 1, 1, 0, 2, 0];
 
-        let ground_truth : DatasetBase<Array2<f64>, CountedTargets<usize, Array2<usize>>> =
-            DatasetBase::new(array![[0.,0.]], array![0, 2, 3, 0, 1, 2, 1, 2, 3, 2].insert_axis(Axis(1))).with_labels(&[&[0],&[1],&[2]]]);
+        let ground_truth: DatasetBase<Array2<f64>, CountedTargets<usize, Array2<usize>>> =
+            DatasetBase::new(
+                array![[0., 0.]],
+                array![0, 2, 3, 0, 1, 2, 1, 2, 3, 2].insert_axis(Axis(1)),
+            )
+            .with_labels(&[&[0], &[1], &[2]]);
 
         // exclude class 3 from evaluation
         let cm = predicted.confusion_matrix(&ground_truth).unwrap();
-        println!("cm {:?}",cm);
+        println!("cm {:?}", cm);
 
         assert_eq_slice(cm.matrix, &[2., 0., 0., 0., 2., 1., 0., 0., 0.]);
 
@@ -614,7 +618,7 @@ mod tests {
 
         // the false-positive error for label=2 is twice severe here
         assert_eq_slice(cm.matrix, &[2., 0., 0., 0., 0., 4., 0., 3., 0.]);
-    }*/
+    }
 
     #[test]
     fn test_roc_curve() {
