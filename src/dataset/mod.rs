@@ -732,7 +732,7 @@ mod tests {
         let mut dataset: Dataset<f64, f64> = (records, targets).into();
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 2 }];
         let acc = dataset
-            .cross_validate_mt(5, &params, |_pred, _truth| Ok(array![5., 6.]))
+            .cross_validate_multi(5, &params, |_pred, _truth| Ok(array![5., 6.]))
             .unwrap();
         assert_eq!(acc.dim(), (params.len(), dataset.ntargets()));
         assert_eq!(acc, array![[5., 6.], [5., 6.]])
@@ -746,7 +746,7 @@ mod tests {
         // second one should throw an error
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 0 }];
         let err = dataset
-            .cross_validate_mt(5, &params, |_pred, _truth| Ok(array![5.]))
+            .cross_validate_multi(5, &params, |_pred, _truth| Ok(array![5.]))
             .unwrap_err();
         assert_eq!(err.to_string(), "invalid parameter 0".to_string());
     }
@@ -760,7 +760,7 @@ mod tests {
         // second one should throw an error
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 1 }];
         let err = dataset
-            .cross_validate_mt(5, &params, |_pred, _truth| {
+            .cross_validate_multi(5, &params, |_pred, _truth| {
                 if false {
                     Ok(array![0f32])
                 } else {

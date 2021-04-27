@@ -820,10 +820,10 @@ where
     ///
     /// let models = vec![model1, model2, ... ];
     ///
-    /// let r2_scores = dataset.cross_validate_mt(5,&models, |prediction, truth| prediction.r2(truth))?;
+    /// let r2_scores = dataset.cross_validate_multi(5,&models, |prediction, truth| prediction.r2(truth))?;
     ///
     /// ```
-    pub fn cross_validate_mt<O, DT, ER, M, FACC, C>(
+    pub fn cross_validate_multi<O, ER, M, FACC, C>(
         &'a mut self,
         k: usize,
         parameters: &[M],
@@ -831,12 +831,11 @@ where
     ) -> std::result::Result<Array2<FACC>, ER>
     where
         ER: std::error::Error + std::convert::From<crate::error::Error>,
-        DT: Data<Elem = E>,
         M: for<'c> Fit<ArrayView2<'c, F>, ArrayView2<'c, E>, ER, Object = O>,
-        O: for<'d> PredictRef<ArrayView2<'a, F>, ArrayBase<DT, Ix2>>,
+        O: for<'d> PredictRef<ArrayView2<'a, F>, Array2<E>>,
         FACC: Float,
         C: Fn(
-            &ArrayBase<DT, Ix2>,
+            &Array2<E>,
             &ArrayView2<E>,
         ) -> std::result::Result<Array1<FACC>, crate::error::Error>,
     {
