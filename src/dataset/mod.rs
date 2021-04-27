@@ -541,6 +541,8 @@ mod tests {
         LinfaError(#[from] crate::error::Error),
     }
 
+    type MockResult<T> = std::result::Result<T, MockError>;
+
     impl<'a> Fit<ArrayView2<'a, f64>, ArrayView2<'a, f64>, MockError> for MockFittable {
         type Object = MockFittableResult;
 
@@ -676,6 +678,7 @@ mod tests {
         assert_eq!(acc, array![3., 3.])
     }
     #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: LinfaError(Parameters(\"0\"))")]
     fn test_st_cv_one_incorrect() {
         let records =
             Array2::from_shape_vec((5, 2), vec![1., 1., 2., 2., 3., 3., 4., 4., 5., 5.]).unwrap();
@@ -683,13 +686,14 @@ mod tests {
         let mut dataset: Dataset<f64, f64> = (records, targets).into();
         // second one should throw an error
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 0 }];
-        let err = dataset
-            .cross_validate(5, &params, |_pred, _truth| Ok(0.))
-            .unwrap_err();
-        assert_eq!(err.to_string(), "invalid parameter 0".to_string());
+        let acc: MockResult<Array1<_>> = dataset
+            .cross_validate(5, &params, |_pred, _truth| Ok(0.));
+
+        acc.unwrap();
     }
 
     #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: LinfaError(Parameters(\"eval\"))")]
     fn test_st_cv_incorrect_eval() {
         let records =
             Array2::from_shape_vec((5, 2), vec![1., 1., 2., 2., 3., 3., 4., 4., 5., 5.]).unwrap();
@@ -697,16 +701,16 @@ mod tests {
         let mut dataset: Dataset<f64, f64> = (records, targets).into();
         // second one should throw an error
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 1 }];
-        let err = dataset
+        let err: MockResult<Array1<_>> = dataset
             .cross_validate(5, &params, |_pred, _truth| {
                 if false {
                     Ok(0f32)
                 } else {
                     Err(Error::Parameters("eval".to_string()))
                 }
-            })
-            .unwrap_err();
-        assert_eq!(err.to_string(), "invalid parameter eval".to_string());
+            });
+
+        err.unwrap();
     }
 
     #[test]
