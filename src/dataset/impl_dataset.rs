@@ -834,10 +834,7 @@ where
         M: for<'c> Fit<ArrayView2<'c, F>, ArrayView2<'c, E>, ER, Object = O>,
         O: for<'d> PredictRef<ArrayView2<'a, F>, Array2<E>>,
         FACC: Float,
-        C: Fn(
-            &Array2<E>,
-            &ArrayView2<E>,
-        ) -> std::result::Result<Array1<FACC>, crate::error::Error>,
+        C: Fn(&Array2<E>, &ArrayView2<E>) -> std::result::Result<Array1<FACC>, crate::error::Error>,
     {
         let mut evaluations = Array2::from_elem((parameters.len(), self.ntargets()), FACC::zero());
         let folds_evaluations: std::result::Result<Vec<_>, ER> = self
