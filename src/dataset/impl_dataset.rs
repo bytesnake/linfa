@@ -6,8 +6,8 @@ use super::{
 };
 use crate::traits::Fit;
 use ndarray::{
-    concatenate, s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, Data,
-    DataMut, Dimension, Ix1, Ix2, OwnedRepr, Array
+    concatenate, s, Array, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis,
+    Data, DataMut, Dimension, Ix1, Ix2, OwnedRepr,
 };
 use rand::{seq::SliceRandom, Rng};
 use std::collections::HashMap;
@@ -919,16 +919,15 @@ where
         M: for<'c> Fit<ArrayView2<'c, F>, ArrayView2<'c, E>, ER, Object = O>,
         O: for<'d> PredictRef<ArrayView2<'a, F>, ArrayBase<OwnedRepr<E>, I>>,
         FACC: Float,
-        C: Fn(
-            &ArrayView1<E>,
-            &ArrayView1<E>,
-        ) -> std::result::Result<FACC, crate::error::Error>,
-        I: Dimension
+        C: Fn(&ArrayView1<E>, &ArrayView1<E>) -> std::result::Result<FACC, crate::error::Error>,
+        I: Dimension,
     {
         // construct shape as either vector or matrix
         let mut shape = match I::NDIM {
             Some(1) | Some(2) => Ok(I::zeros(I::NDIM.unwrap())),
-            _ => Err(crate::Error::NdShape(ndarray::ShapeError::from_kind(ndarray::ErrorKind::IncompatibleShape))),
+            _ => Err(crate::Error::NdShape(ndarray::ShapeError::from_kind(
+                ndarray::ErrorKind::IncompatibleShape,
+            ))),
         }?;
 
         // assign shape form of output
@@ -955,26 +954,34 @@ where
                         let predicted = m.predict(valid.records());
 
                         // reshape to ensure that matrix has two dimensions
-                        let ntargets = if predicted.ndim() == 1 { 1 } else { predicted.len_of(Axis(1)) };
+                        let ntargets = if predicted.ndim() == 1 {
+                            1
+                        } else {
+                            predicted.len_of(Axis(1))
+                        };
 
-                        let predicted: Array2<_> = predicted
-                            .into_shape((nsamples, ntargets))
-                            .unwrap();
+                        let predicted: Array2<_> =
+                            predicted.into_shape((nsamples, ntargets)).unwrap();
 
-                        predicted.gencolumns()
+                        predicted
+                            .gencolumns()
                             .into_iter()
                             .zip(targets.gencolumns().into_iter())
-                            .map(|(p, t)| eval(&p.view(), &t).map_err(|err| ER::from(err)))
+                            .map(|(p, t)| eval(&p.view(), &t).map_err(ER::from))
                             .collect()
                     })
                     .collect::<std::result::Result<Vec<Vec<FACC>>, ER>>()?
-                    .into_iter().flatten().collect();
+                    .into_iter()
+                    .flatten()
+                    .collect();
 
                 Ok(Array::from_shape_vec(shape.clone(), eval_predictions).unwrap())
             })
             .collect::<std::result::Result<Vec<_>, ER>>();
 
-        let res = folds_evaluations?.into_iter().fold(Array::<FACC, _>::zeros(shape.clone()), std::ops::Add::add);
+        let res = folds_evaluations?
+            .into_iter()
+            .fold(Array::<FACC, _>::zeros(shape.clone()), std::ops::Add::add);
 
         Ok(res / FACC::cast(k))
     }
