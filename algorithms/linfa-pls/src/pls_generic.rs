@@ -268,9 +268,7 @@ impl<F: Float, D: Data<Elem = F>> Fit<ArrayBase<D, Ix2>, ArrayBase<D, Ix2>, PlsE
                 Algorithm::Nipals => {
                     // Replace columns that are all close to zero with zeros
                     for mut yj in yk.gencolumns_mut() {
-                        if *(yj.mapv(|y| num_traits::float::Float::abs(y)).max()?)
-                            < F::cast(10.) * eps
-                        {
+                        if *(yj.mapv(|y| y.abs()).max()?) < F::cast(10.) * eps {
                             yj.assign(&Array1::zeros(yj.len()));
                         }
                     }
@@ -287,7 +285,7 @@ impl<F: Float, D: Data<Elem = F>> Fit<ArrayBase<D, Ix2>, ArrayBase<D, Ix2>, PlsE
             // compute scores, i.e. the projections of x and Y
             let x_scores_k = xk.dot(&x_weights_k);
             let y_ss = if norm_y_weights {
-                F::cast(1.)
+                F::one()
             } else {
                 y_weights_k.dot(&y_weights_k)
             };
@@ -363,7 +361,7 @@ impl<F: Float> PlsParams<F> {
 
         let mut y_score = Array1::ones(y.ncols());
         for col in y.t().genrows() {
-            if *col.mapv(|v| num_traits::Float::abs(v)).max().unwrap() > eps {
+            if *col.mapv(|v| v.abs()).max().unwrap() > eps {
                 y_score = col.to_owned();
                 break;
             }
@@ -388,7 +386,7 @@ impl<F: Float> PlsParams<F> {
                 Mode::A => x.t().dot(&y_score) / y_score.dot(&y_score),
                 Mode::B => x_pinv.to_owned().unwrap().dot(&y_score),
             };
-            x_weights /= num_traits::Float::sqrt(x_weights.dot(&x_weights)) + eps;
+            x_weights /= x_weights.dot(&x_weights).sqrt() + eps;
             let x_score = x.dot(&x_weights);
 
             y_weights = match self.mode {
@@ -397,7 +395,7 @@ impl<F: Float> PlsParams<F> {
             };
 
             if norm_y_weights {
-                y_weights /= num_traits::Float::sqrt(y_weights.dot(&y_weights)) + eps
+                y_weights /= y_weights.dot(&y_weights).sqrt() + eps
             }
 
             let ya = y.dot(&y_weights);

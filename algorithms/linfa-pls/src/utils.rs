@@ -3,8 +3,8 @@ use linfa::{
     DatasetBase, Float,
 };
 use ndarray::{s, Array1, Array2, ArrayBase, ArrayView2, Axis, Data, DataMut, Ix1, Ix2, Zip};
-use ndarray_linalg::Scalar;
 use ndarray_linalg::svd::*;
+use ndarray_linalg::Scalar;
 use ndarray_stats::QuantileExt;
 
 pub fn outer<F: Float>(
@@ -35,12 +35,13 @@ pub fn pinv2<F: Float>(x: ArrayView2<F>, cond: Option<F>) -> Array2<F> {
         acc
     });
 
-    let mut ucut = u.slice(s![.., ..rank]).to_owned();
+    let mut ucut = u.slice_move(s![.., ..rank]);
     ucut /= &s.slice(s![..rank]).mapv(|v| F::Lapack::cast(v));
-    ucut.dot(&vh.slice(s![..rank, ..]))
-        .mapv(|v| v.conj())
+
+    vh.slice(s![..rank, ..])
         .t()
-        .to_owned()
+        .dot(&ucut.t())
+        .mapv(|v| v.conj())
         .without_lapack()
 }
 
@@ -120,7 +121,7 @@ mod tests {
     #[test]
     fn test_pinv2() {
         let a = array![[1., 2., 3.], [4., 5., 6.], [7., 8., 10.]];
-        let a_pinv2 = pinv2(&a, None);
+        let a_pinv2 = pinv2(a.view(), None);
         assert_abs_diff_eq!(a.dot(&a_pinv2), Array2::eye(3), epsilon = 1e-6)
     }
 }
