@@ -7,7 +7,7 @@ use super::{
 use crate::traits::Fit;
 use ndarray::{
     concatenate, s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, Data,
-    DataMut, Dimension, Ix1, Ix2,
+    DataMut, Dimension, Ix1, Ix2, OwnedRepr,
 };
 use rand::{seq::SliceRandom, Rng};
 use std::collections::HashMap;
@@ -785,7 +785,7 @@ where
         objs.into_iter().zip(self.sample_chunks(fold_size))
     }
 
-    /// Cross validation for multi-target algorithms
+    /*/// Cross validation for multi-target algorithms
     ///
     /// Given a list of fittable models, cross validation
     /// is used to compare their performance according to some
@@ -868,7 +868,7 @@ where
             evaluations.add_assign(&fold_evaluation)
         }
         Ok(evaluations / FACC::from(k).unwrap())
-    }
+    }*/
 
     /// Cross validation for single target algorithms
     ///
@@ -908,24 +908,24 @@ where
     /// let r2_scores = dataset.cross_validate(5,&models, |prediction, truth| prediction.r2(truth))?;
     ///
     /// ```
-    pub fn cross_validate<O, DT, ER, M, FACC, C>(
+    pub fn cross_validate<O, DT, ER, M, FACC, C, I>(
         &'a mut self,
         k: usize,
         parameters: &[M],
         eval: C,
-    ) -> std::result::Result<Array1<FACC>, ER>
+    ) -> std::result::Result<ArrayBase<OwnedRepr<FACC>, I>, ER>
     where
         ER: std::error::Error + std::convert::From<crate::error::Error>,
         DT: Data<Elem = E>,
         M: for<'c> Fit<ArrayView2<'c, F>, ArrayView2<'c, E>, ER, Object = O>,
-        O: for<'d> PredictRef<ArrayView2<'a, F>, ArrayBase<DT, Ix1>>,
+        O: for<'d> PredictRef<ArrayView2<'a, F>, ArrayBase<DT, I>>,
         FACC: Float,
         C: Fn(
-            &ArrayBase<DT, Ix1>,
+            &ArrayView1<E>,
             &ArrayView1<E>,
         ) -> std::result::Result<FACC, crate::error::Error>,
+        I: Dimension
     {
-        self.try_single_target()?;
         let mut evaluations = Array1::from_elem(parameters.len(), FACC::zero());
         let folds_evaluations: std::result::Result<Vec<_>, ER> = self
             .iter_fold(k, |train| {
@@ -934,19 +934,51 @@ where
                 fit_result
             })
             .map(|(models, valid)| {
-                let targets = valid.try_single_target()?;
+                let targets = valid.as_multi_targets();
                 let models = models?;
-                let eval_predictions: std::result::Result<Array1<FACC>, ER> = models
+                //olet eval_predictions: std::result::Result<Vec<FACC>, ER> = models
+                let eval_predictions = models
                     .iter()
-                    .map(|m| {
+                    .flat_map(|m| {
                         let predicted = m.predict(valid.records());
-                        match eval(&predicted, &targets) {
-                            Err(e) => Err(ER::from(e)),
-                            Ok(res) => Ok(res),
-                        }
+                        // reshape to ensure that matrix has two dimensions
+                        let ntargets = if predicted.ndim() == 1 { 1 } else { predicted.len_of(Axis(1)) };
+
+                        let predicted: ArrayBase<DT, Ix2> = predicted
+                            .into_shape((predicted.len_of(Axis(0)), ntargets))
+                            .unwrap();
+
+                        predicted.gencolumns()
+                            .into_iter()
+                            .zip(targets.gencolumns().into_iter())
+                            .map(|(p, t)| eval(&p.view(), &t).map_err(|err| ER::from(err)))
+                            .collect::<std::result::Result<Vec<_>, ER>>()
                     })
-                    .collect();
-                eval_predictions
+                    .collect::<Vec<_>>();
+
+                let mut ntargets = 0;
+                let mut tmp_evals = Vec::new();
+                
+                for eval in eval_predictions {
+                    let mut eval = eval;
+
+                    if ntargets == 0 {
+                        ntargets = eval.len();
+                    }
+
+                    if tmp_evals.len() == 0 {
+                        tmp_evals = Vec::with_capacity(ntargets * parameters.len());
+                    }
+
+                    tmp_evals.append(&mut eval);
+                }
+
+                // not there yet
+                if ntargets == 1 {
+                    Array1::from(tmp_evals)
+                } else {
+                    Array2::from_shape_vec((parameters.len(), ntargets), tmp_evals)
+                }
             })
             .collect();
 
