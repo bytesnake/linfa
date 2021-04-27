@@ -677,10 +677,8 @@ mod tests {
             .unwrap();
         assert_eq!(acc, array![3., 3.]);
 
-        let mut dataset: Dataset<f64, f64> = (
-            array![[1., 1.], [2., 2.]],
-            array![[1., 2.], [3., 4.]]
-        ).into();
+        let mut dataset: Dataset<f64, f64> =
+            (array![[1., 1.], [2., 2.]], array![[1., 2.], [3., 4.]]).into();
 
         let params = vec![MockFittable { mock_var: 1 }, MockFittable { mock_var: 2 }];
         let acc = dataset
